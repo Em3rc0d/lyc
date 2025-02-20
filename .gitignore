@@ -1,0 +1,23 @@
+# Entornos virtuales
+.venv/
+
+# Archivos y carpetas específicas
+.qodo/
+assets/
+
+# Archivos compilados de Python
+__pycache__/
+*.py[cod]
+
+# Archivos de configuración y dependencias
+*.env
+*.log
+
+# Configuración de IDEs y editores
+.vscode/
+.idea/
+*.iml
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
