@@ -45,49 +45,60 @@ class AFND_to_AFD:
 
     def convertir(self):
         afd = Automata(tipo='AFD')
-        estados_procesados = {}
-        cola = [frozenset([self.afnd.estado_inicial])]
-        contador = 0  # Para asignar nombres únicos
+        estados_procesados = {}  # Mapeo de nombres a conjuntos de estados
+        cola = []  # Usamos una cola FIFO
+
+        # Calcular cerradura épsilon del estado inicial
+        estado_inicial = self.afnd.cerradura_epsilon({self.afnd.estado_inicial})
+        estado_inicial = frozenset(estado_inicial)
+
+        print(f"⚙️ Cerradura épsilon del estado inicial: {estado_inicial}")
+
+        # Asignar el primer nombre "Q0"
+        estados_procesados["Q0"] = estado_inicial
+        afd.agregar_estado("Q0", any(e.es_final for e in estado_inicial))
+        cola.append(("Q0", estado_inicial))  # Encolamos el estado inicial
+
+        contador = 1  # Para nombres de estados nuevos
 
         while cola:
-            conjunto_estados = cola.pop(0)
-            
-            # Si el conjunto ya tiene un nombre, reutilizarlo
-            nombre_estado = None
-            for key, value in estados_procesados.items():
-                if value == conjunto_estados:
-                    nombre_estado = key
-                    break
-            if not nombre_estado:
-                nombre_estado = f"Q{contador}"
-                contador += 1
+            nombre_actual, conjunto_actual = cola.pop(0)
+            print(f"⚙️ Procesando estado: {nombre_actual} con conjunto {conjunto_actual}")
 
-            if nombre_estado not in estados_procesados:
-                es_final = any(e.es_final for e in conjunto_estados)
-                afd.agregar_estado(nombre_estado, es_final)
-                estados_procesados[nombre_estado] = conjunto_estados
-
-                transiciones_nuevas = {}
-                for estado in conjunto_estados:
-                    for simbolo, destinos in estado.transiciones.items():
+            transiciones_nuevas = {}
+            for estado in conjunto_actual:
+                for simbolo, destinos in estado.transiciones.items():
+                    if simbolo:  # Ignorar transiciones épsilon
                         transiciones_nuevas.setdefault(simbolo, set()).update(destinos)
 
-                for simbolo, destinos in transiciones_nuevas.items():
-                    if destinos:
-                        # Buscar si el conjunto ya fue procesado
-                        destino_nombre = None
-                        for key, value in estados_procesados.items():
-                            if value == destinos:
-                                destino_nombre = key
-                                break
-                        if not destino_nombre:
-                            destino_nombre = f"Q{contador}"
-                            contador += 1
-                            cola.append(frozenset(destinos))  # Solo encolar si es nuevo
+            for simbolo, destinos in transiciones_nuevas.items():
+                print(f"🔍 Transición detectada: {nombre_actual} --({simbolo})--> {destinos}")
+                destinos_frozen = frozenset(self.afnd.cerradura_epsilon(destinos))  # Aplicar cerradura épsilon
 
-                        afd.agregar_transicion(nombre_estado, simbolo, destino_nombre)
+                destino_nombre = None
+                # Buscar si el destino ya está registrado
+                for key, value in estados_procesados.items():
+                    if value == destinos_frozen:
+                        destino_nombre = key
+                        break
 
+                if not destino_nombre:  # Si no existe, se crea
+                    destino_nombre = f"Q{contador}"
+                    contador += 1
+                    estados_procesados[destino_nombre] = destinos_frozen
+                    afd.agregar_estado(destino_nombre, any(e.es_final for e in destinos_frozen))
+                    cola.append((destino_nombre, destinos_frozen))  # Se encola para su procesamiento
+
+                # Agregar la transición en el AFD
+                afd.agregar_transicion(nombre_actual, simbolo, destino_nombre)
+                print(f"✅ Agregando transición: {nombre_actual} --({simbolo})--> {destino_nombre}")
+
+        print(f"📌 Estados procesados: {estados_procesados}")
         return afd
+
+
+
+
 
 
     def mostrar_automatas(self):

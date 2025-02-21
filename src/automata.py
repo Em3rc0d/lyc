@@ -1,4 +1,3 @@
-### src/automata.py
 import graphviz
 import json
 
@@ -31,7 +30,6 @@ class Automata:
         if not self.estado_inicial:
             self.estado_inicial = self.estados[nombre]
 
-
     def agregar_transicion(self, origen, simbolo, destino):
         if origen not in self.estados:
             raise ValueError(f"El estado origen '{origen}' no existe en el autómata.")
@@ -40,8 +38,8 @@ class Automata:
         
         self.estados[origen].agregar_transicion(simbolo, self.estados[destino])
 
-        if self.estado_inicial == self.estados[origen]:
-            self.estado_inicial = self.estados[destino]
+        #if self.estado_inicial == self.estados[origen]:
+         #self.estado_inicial = self.estados[destino]
 
         return self
 
@@ -93,3 +91,68 @@ class Automata:
             json.dump(data, file, indent=4)
         print(f"✅ Autómata guardado en '{filepath}'.")
         return self
+    
+    def minimizar(self):
+        if self.tipo != 'AFD':
+            raise ValueError("Solo se puede minimizar un AFD.")
+        
+        estados = list(self.estados.values())
+        simbolos = set()
+        for estado in estados:
+            simbolos.update(estado.transiciones.keys())
+        
+        finales = {estado.nombre for estado in estados if estado.es_final}
+        no_finales = {estado.nombre for estado in estados if not estado.es_final}
+        particiones = [finales, no_finales]
+        
+        while True:
+            nuevas_particiones = []
+            for grupo in particiones:
+                subgrupos = {}
+                for estado in grupo:
+                    key = tuple(
+                        next((i for i, g in enumerate(particiones) if self.estados[dest.nombre].nombre in g), -1)
+                        for simbolo in simbolos
+                        for dest in self.estados[estado].transiciones.get(simbolo, [])
+                    )
+                    if key in subgrupos:
+                        subgrupos[key].add(estado)
+                    else:
+                        subgrupos[key] = {estado}
+                nuevas_particiones.extend(subgrupos.values())
+            if nuevas_particiones == particiones:
+                break
+            particiones = nuevas_particiones
+        
+        nuevo_automata = Automata(tipo='AFD')
+        estado_mapeo = {}
+        for i, grupo in enumerate(particiones):
+            nombre_grupo = f"Q{i}"
+            es_final = any(self.estados[nombre].es_final for nombre in grupo)
+            nuevo_automata.agregar_estado(nombre_grupo, es_final)
+            for nombre in grupo:
+                estado_mapeo[nombre] = nombre_grupo
+        
+        for grupo in particiones:
+            representante = next(iter(grupo))
+            for simbolo, destinos in self.estados[representante].transiciones.items():
+                if destinos:
+                    nuevo_automata.agregar_transicion(estado_mapeo[representante], simbolo, estado_mapeo[destinos[0].nombre])
+        
+        return nuevo_automata
+
+
+    def cerradura_epsilon(self, estados):
+        """Calcula la cerradura épsilon de un conjunto de estados"""
+        cerradura = set(estados)
+        pila = list(estados)
+
+        while pila:
+            estado = pila.pop()
+            if "" in estado.transiciones:  # Si hay transiciones épsilon
+                for destino in estado.transiciones[""]:
+                    if destino not in cerradura:
+                        cerradura.add(destino)
+                        pila.append(destino)
+
+        return cerradura

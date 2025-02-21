@@ -1,15 +1,27 @@
 {
     "estados": [
-        {
-            "nombre": "Q0",
-            "final": true
-        }
+        {"nombre": "1", "final": false},
+        {"nombre": "2", "final": true},
+        {"nombre": "3", "final": false},
+        {"nombre": "4", "final": false},
+        {"nombre": "5", "final": false},
+        {"nombre": "6", "final": true},
+        {"nombre": "7", "final": false}
     ],
     "transiciones": [
-        {
-            "origen": "Q0",
-            "simbolo": "a",
-            "destino": "Q0"
-        }
+        {"origen": "1", "simbolo": "a", "destino": "2"},
+        {"origen": "1", "simbolo": "b", "destino": "3"},
+        {"origen": "2", "simbolo": "a", "destino": "4"},
+        {"origen": "2", "simbolo": "b", "destino": "5"},
+        {"origen": "3", "simbolo": "a", "destino": "6"},
+        {"origen": "3", "simbolo": "b", "destino": "7"},
+        {"origen": "4", "simbolo": "a", "destino": "4"},
+        {"origen": "4", "simbolo": "b", "destino": "5"},
+        {"origen": "5", "simbolo": "a", "destino": "6"},
+        {"origen": "5", "simbolo": "b", "destino": "7"},
+        {"origen": "6", "simbolo": "a", "destino": "4"},
+        {"origen": "6", "simbolo": "b", "destino": "5"},
+        {"origen": "7", "simbolo": "a", "destino": "6"},
+        {"origen": "7", "simbolo": "b", "destino": "7"}
     ]
 }
