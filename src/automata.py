@@ -1,49 +1,83 @@
 ### src/automata.py
 import graphviz
 import json
+from typing import Dict, List, Optional, Set
+from dataclasses import dataclass, field
 
+@dataclass
 class Estado:
-    def __init__(self, nombre, es_final=False):
-        self.nombre = nombre
-        self.es_final = es_final
-        self.transiciones = {}
+    nombre: str
+    es_final: bool = False
+    transiciones: Dict[str, List['Estado']] = field(default_factory=dict)
 
-    def agregar_transicion(self, simbolo, estado_destino):
-        if simbolo in self.transiciones:
+    def agregar_transicion(self, simbolo: str, estado_destino: 'Estado') -> None:
+        if not isinstance(simbolo, str) or not isinstance(estado_destino, Estado):
+            raise ValueError("Tipos de datos inválidos")
+        
+        if simbolo not in self.transiciones:
+            self.transiciones[simbolo] = []
+        if estado_destino not in self.transiciones[simbolo]:
             self.transiciones[simbolo].append(estado_destino)
-        else:
-            self.transiciones[simbolo] = [estado_destino]
 
-    def __repr__(self):
-        return f"Estado({self.nombre}, Final={self.es_final})"
+    def __hash__(self):
+        return hash(self.nombre)
 
 class Automata:
-    def __init__(self, tipo='AFND'):
+    def __init__(self, tipo: str = 'AFND'):
+        if tipo not in ['AFND', 'AFD']:
+            raise ValueError("Tipo de autómata inválido")
+        
         self.tipo = tipo
-        self.estados = {}
-        self.estado_inicial = None
+        self.estados: Dict[str, Estado] = {}
+        self.estado_inicial: Optional[Estado] = None
+        self.alfabeto: Set[str] = set()
 
-    def agregar_estado(self, nombre, es_final=False):
+    def agregar_estado(self, nombre: str, es_final: bool = False) -> None:
+        if not isinstance(nombre, str):
+            raise ValueError("El nombre del estado debe ser una cadena")
+            
         if nombre in self.estados:
-            raise ValueError(f"El estado '{nombre}' ya existe.")
+            raise ValueError(f"El estado '{nombre}' ya existe")
         
-        self.estados[nombre] = Estado(nombre, es_final)
+        nuevo_estado = Estado(nombre, es_final)
+        self.estados[nombre] = nuevo_estado
+        
         if not self.estado_inicial:
-            self.estado_inicial = self.estados[nombre]
+            self.estado_inicial = nuevo_estado
 
+    def agregar_transicion(self, origen: str, simbolo: str, destino: str) -> 'Automata':
+        if not all(isinstance(x, str) for x in [origen, simbolo, destino]):
+            raise ValueError("Todos los argumentos deben ser cadenas")
 
-    def agregar_transicion(self, origen, simbolo, destino):
-        if origen not in self.estados:
-            raise ValueError(f"El estado origen '{origen}' no existe en el autómata.")
-        if destino not in self.estados:
-            raise ValueError(f"El estado destino '{destino}' no existe en el autómata.")
-        
+        if origen not in self.estados or destino not in self.estados:
+            raise ValueError("Estado origen o destino no existe")
+
+        if self.tipo == 'AFD' and simbolo in self.estados[origen].transiciones:
+            raise ValueError(f"El AFD ya tiene una transición para el símbolo {simbolo}")
+
         self.estados[origen].agregar_transicion(simbolo, self.estados[destino])
-
-        if self.estado_inicial == self.estados[origen]:
-            self.estado_inicial = self.estados[destino]
-
+        self.alfabeto.add(simbolo)
         return self
+
+    def es_deterministico(self) -> bool:
+        for estado in self.estados.values():
+            for transiciones in estado.transiciones.values():
+                if len(transiciones) > 1:
+                    return False
+        return True
+
+    def validar_estructura(self) -> bool:
+        if not self.estado_inicial:
+            return False
+        
+        if not any(estado.es_final for estado in self.estados.values()):
+            return False
+            
+        for estado in self.estados.values():
+            for destinos in estado.transiciones.values():
+                if not all(destino in self.estados.values() for destino in destinos):
+                    return False
+        return True
 
     def mostrar_automata(self):
         print(f"Tipo: {self.tipo}")
@@ -67,29 +101,24 @@ class Automata:
             for estado in self.estados.values()
         }
 
-    def generar_grafico(self, filename="automata"):
-        dot = graphviz.Digraph()
-        for estado in self.estados.values():
-            shape = "doublecircle" if estado.es_final else "circle"
-            dot.node(estado.nombre, shape=shape)
-        for estado in self.estados.values():
-            for simbolo, destinos in estado.transiciones.items():
-                for destino in destinos:
-                    dot.edge(estado.nombre, destino.nombre, label=simbolo)
-        dot.render(filename, format="png", cleanup=True)        
-        return self
-    
-    def guardar_en_json(self, filepath):
-        data = {
-            "estados": [{"nombre": estado.nombre, "final": estado.es_final} for estado in self.estados.values()],
-            "transiciones": [
-                {"origen": estado.nombre, "simbolo": simbolo, "destino": destino.nombre}
-                for estado in self.estados.values()
-                for simbolo, destinos in estado.transiciones.items()
-                for destino in destinos
-            ]
-        }
-        with open(filepath, 'w') as file:
-            json.dump(data, file, indent=4)
-        print(f"✅ Autómata guardado en '{filepath}'.")
-        return self
+    def validar_cadena(self, cadena):
+        """Valida una cadena en el autómata."""
+        if self.tipo == 'AFND':
+            # Para AFND usamos el validador especializado
+            from validator import Validator
+            return Validator.validar_cadena(self, cadena)
+        
+        # Para AFD mantenemos la lógica existente
+        if not cadena:
+            return True if self.estado_inicial.es_final else False
+
+        estado_actual = self.estado_inicial
+        try:
+            for simbolo in cadena:
+                if simbolo not in estado_actual.transiciones:
+                    return False
+                estado_actual = estado_actual.transiciones[simbolo][0]
+            return estado_actual.es_final
+        except Exception as e:
+            print(f"Error al validar cadena: {e}")
+            return False
