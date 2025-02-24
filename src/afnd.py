@@ -11,20 +11,37 @@ class AFND(Automata):
             with open(filepath, 'r') as file:
                 data = json.load(file)
 
-            for estado in data.get("estados", []):
-                self.agregar_estado(estado["nombre"], estado.get("final", False))
+            # Verificar que el archivo tiene la estructura correcta
+            if "estados" not in data or "transiciones" not in data:
+                raise ValueError("❌ Error: El JSON no tiene la estructura esperada. Debe incluir 'estados' y 'transiciones'.")
 
-            for transicion in data.get("transiciones", []):
-                if transicion["origen"] in self.estados and transicion["destino"] in self.estados:
-                    self.agregar_transicion(transicion["origen"], transicion["simbolo"], transicion["destino"])
+            # Agregar estados
+            for estado in data["estados"]:
+                nombre = estado.get("nombre")
+                es_final = estado.get("final", False)
+                if nombre:
+                    self.agregar_estado(nombre, es_final)
                 else:
-                    print(f"⚠️ Advertencia: Estado no encontrado en transición {transicion}")
+                    print("⚠️ Advertencia: Estado sin nombre encontrado en el JSON.")
+
+            # Agregar transiciones
+            for transicion in data["transiciones"]:
+                origen = transicion.get("origen")
+                simbolo = transicion.get("simbolo")
+                destino = transicion.get("destino")
+
+                if origen in self.estados and destino in self.estados:
+                    self.agregar_transicion(origen, simbolo, destino)
+                else:
+                    print(f"⚠️ Advertencia: Estado no encontrado en la transición {transicion}")
 
         except FileNotFoundError:
-            print(f"❌ Error: Archivo '{filepath}' no encontrado.2")
+            print(f"❌ Error: Archivo '{filepath}' no encontrado.")
         except json.JSONDecodeError:
             print(f"❌ Error: Archivo '{filepath}' no tiene un formato JSON válido.")
-        
+        except ValueError as ve:
+            print(ve)
+
         return self
 
     def guardar_en_json(self, filepath="../data/automata1.json"):
@@ -32,10 +49,10 @@ class AFND(Automata):
         data = {
             "estados": [{"nombre": estado.nombre, "final": estado.es_final} for estado in self.estados.values()],
             "transiciones": [
-                {"origen": estado.nombre, "simbolo": simbolo, "destino": destino}
+                {"origen": estado.nombre, "simbolo": simbolo, "destino": destino.nombre}  # Almacena solo nombres
                 for estado in self.estados.values()
                 for simbolo, destinos in estado.transiciones.items()
-                for destino in destinos  # Corregido: solo almacena nombres de estados, no objetos
+                for destino in destinos
             ]
         }
 
@@ -54,9 +71,9 @@ class AFND(Automata):
         destino = destino.lower()
         
         if origen not in self.estados:
-            raise ValueError(f"El estado origen '{origen}' no existe en el autómata.")
+            raise ValueError(f"❌ Error: El estado origen '{origen}' no existe en el autómata.")
         if destino not in self.estados:
-            raise ValueError(f"El estado destino '{destino}' no existe en el autómata.")
+            raise ValueError(f"❌ Error: El estado destino '{destino}' no existe en el autómata.")
         
         # Agregar la transición correctamente
         self.estados[origen].agregar_transicion(simbolo, self.estados[destino])
