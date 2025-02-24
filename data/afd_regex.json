@@ -1,0 +1,24 @@
+{
+    "estados": [
+        {
+            "nombre": "Q0",
+            "final": false
+        },
+        {
+            "nombre": "Q1",
+            "final": true
+        }
+    ],
+    "transiciones": [
+        {
+            "origen": "Q0",
+            "simbolo": "a",
+            "destino": "Q1"
+        },
+        {
+            "origen": "Q1",
+            "simbolo": "\u03b5",
+            "destino": "Q0"
+        }
+    ]
+}

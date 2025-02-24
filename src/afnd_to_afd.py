@@ -12,21 +12,23 @@ class AFND_to_AFD:
         try:
             with open(filepath, 'r') as file:
                 data = json.load(file)
-
-            for estado in data.get("estados", []):
-                self.afnd.agregar_estado(estado["nombre"], estado.get("final", False))
-
-            for transicion in data.get("transiciones", []):
-                if transicion["origen"] in self.afnd.estados and transicion["destino"] in self.afnd.estados:
-                    self.afnd.agregar_transicion(transicion["origen"], transicion["simbolo"], transicion["destino"])
-                else:
-                    print(f"⚠️ Advertencia: Estado no encontrado en transición {transicion}")
-
         except FileNotFoundError:
             print(f"❌ Error: Archivo '{filepath}' no encontrado")
+            return self
         except json.JSONDecodeError:
             print(f"❌ Error: Archivo '{filepath}' no tiene un formato JSON válido.")
-        
+            return self
+
+        for estado in data.get("estados", []):
+            self.afnd.agregar_estado(estado["nombre"], estado.get("final", False))
+
+        for transicion in data.get("transiciones", []):
+            origen = transicion.get("origen")
+            destino = transicion.get("destino")
+            if origen in self.afnd.estados and destino in self.afnd.estados:
+                self.afnd.agregar_transicion(origen, transicion.get("simbolo"), destino)
+            else:
+                print(f"⚠️ Advertencia: Estado no encontrado en transición {transicion}")
         return self
 
     def guardar_en_json(self, filepath):
@@ -39,85 +41,72 @@ class AFND_to_AFD:
                 for destino in destinos
             ]
         }
-        with open(filepath, 'w') as file:
-            json.dump(data, file, indent=4)
+        try:
+            with open(filepath, 'w') as file:
+                json.dump(data, file, indent=4)
+            print(f"✅ Autómata guardado en '{filepath}'.")
+        except Exception as e:
+            print(f"❌ Error al guardar el archivo: {e}")
         return self
 
     def convertir(self):
+        """
+        Convierte el AFND interno a un AFD utilizando el algoritmo de construcción del subconjunto.
+        Se utiliza un diccionario para mapear cada conjunto de estados (frozenset) a un nombre único.
+        """
         afd = Automata(tipo='AFD')
-        estados_procesados = {}
-        cola = [frozenset([self.afnd.estado_inicial])]
-        contador = 0  # Para asignar nombres únicos
+        procesados = {}  # Mapear frozenset de estados -> nombre asignado
+        cola = []
+        contador = 0
+        conjunto_inicial = frozenset([self.afnd.estado_inicial])
+        cola.append(conjunto_inicial)
+        procesados[conjunto_inicial] = f"Q{contador}"
+        es_final = any(estado.es_final for estado in conjunto_inicial)
+        afd.agregar_estado(f"Q{contador}", es_final)
+        contador += 1
 
         while cola:
-            conjunto_estados = cola.pop(0)
-            
-            # Si el conjunto ya tiene un nombre, reutilizarlo
-            nombre_estado = None
-            for key, value in estados_procesados.items():
-                if value == conjunto_estados:
-                    nombre_estado = key
-                    break
-            if not nombre_estado:
-                nombre_estado = f"Q{contador}"
-                contador += 1
-
-            if nombre_estado not in estados_procesados:
-                es_final = any(e.es_final for e in conjunto_estados)
-                afd.agregar_estado(nombre_estado, es_final)
-                estados_procesados[nombre_estado] = conjunto_estados
-
-                transiciones_nuevas = {}
-                for estado in conjunto_estados:
-                    for simbolo, destinos in estado.transiciones.items():
-                        transiciones_nuevas.setdefault(simbolo, set()).update(destinos)
-
-                for simbolo, destinos in transiciones_nuevas.items():
-                    if destinos:
-                        # Buscar si el conjunto ya fue procesado
-                        destino_nombre = None
-                        for key, value in estados_procesados.items():
-                            if value == destinos:
-                                destino_nombre = key
-                                break
-                        if not destino_nombre:
-                            destino_nombre = f"Q{contador}"
-                            contador += 1
-                            cola.append(frozenset(destinos))  # Solo encolar si es nuevo
-
-                        afd.agregar_transicion(nombre_estado, simbolo, destino_nombre)
-
+            conjunto_actual = cola.pop(0)
+            nombre_actual = procesados[conjunto_actual]
+            transiciones_nuevas = {}
+            for estado in conjunto_actual:
+                for simbolo, destinos in estado.transiciones.items():
+                    transiciones_nuevas.setdefault(simbolo, set()).update(destinos)
+            for simbolo, destinos in transiciones_nuevas.items():
+                if destinos:
+                    conjunto_destino = frozenset(destinos)
+                    if conjunto_destino in procesados:
+                        nombre_destino = procesados[conjunto_destino]
+                    else:
+                        nombre_destino = f"Q{contador}"
+                        procesados[conjunto_destino] = nombre_destino
+                        contador += 1
+                        cola.append(conjunto_destino)
+                        es_final = any(estado.es_final for estado in conjunto_destino)
+                        afd.agregar_estado(nombre_destino, es_final)
+                    afd.agregar_transicion(nombre_actual, simbolo, nombre_destino)
         return afd
-
 
     def mostrar_automatas(self):
         print("\n🔹 Autómata Finito No Determinista (AFND):")
         self.afnd.mostrar_automata()
-
         print("\n🔹 Autómata Finito Determinista (AFD):")
         afd = self.convertir()
         afd.mostrar_automata()
         return self
-
 
     def generar_grafico(self, filename="automata"):
         Visualizer.generar_grafico(self.afnd, filename)
         return self
 
     def validar_cadena(self, cadena):
-        afd = self.convertir()  # Convertir el AFND a AFD antes de validar
+        afd = self.convertir()
         return Validator.validar_cadena(afd, cadena)
 
     def agregar_estado(self, nombre, es_final=False):
-        nombre = nombre.lower()
-        self.afnd.agregar_estado(nombre, es_final)
+        self.afnd.agregar_estado(nombre.lower(), es_final)
         return self
 
     def agregar_transicion(self, origen, simbolo, destino):
-        origen = origen.lower()
-        destino = destino.lower()
-        self.afnd.agregar_transicion(origen, simbolo, destino)
-        return self 
-    
-
-    
+        self.afnd.agregar_transicion(origen.lower(), simbolo, destino.lower())
+        return self
