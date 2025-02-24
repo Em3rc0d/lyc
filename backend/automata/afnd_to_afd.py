@@ -1,5 +1,5 @@
-from automata import Automata, Estado
-from validator import Validator
+from .automata import Automata, Estado
+from .validator import Validator
 from typing import Dict, Set, FrozenSet, Tuple
 from collections import defaultdict
 
@@ -30,7 +30,7 @@ class AFND_to_AFD:
                 for simbolo in self.afnd.alfabeto:
                     if simbolo == "ε":
                         continue
-                        
+
                     nuevos_estados = self._calcular_transicion(conjunto_actual, simbolo)
                     if nuevos_estados:
                         nuevo_nombre = self._obtener_nombre_estado(nuevos_estados, estados_procesados)
@@ -87,5 +87,3 @@ class AFND_to_AFD:
         destino = destino.lower()
         self.afnd.agregar_transicion(origen, simbolo, destino)
         return self
-
-

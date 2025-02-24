@@ -1,167 +1,140 @@
-import React, { useEffect, useRef, useCallback } from 'react';
-import Cytoscape from '../cytoscapeConfig';
-import { Box } from '@chakra-ui/react';
+import React, { useEffect, useRef } from 'react';
+import { Network } from 'vis-network';
+import { DataSet } from 'vis-data';
 
-const AutomataVisualizer = ({ automataType, automataData }) => {
+const AutomataVisualizer = ({ nodes, edges, onNodeSelect, onEdgeSelect, onNodePositionChange }) => {
     const containerRef = useRef(null);
-    const cyRef = useRef(null);
-    const layoutRef = useRef(null);
-
-    const safeRunLayout = useCallback(() => {
-        if (!layoutRef.current || !cyRef.current || !containerRef.current) return;
-        
-        try {
-            layoutRef.current.run();
-        } catch (e) {
-            console.error('Error running layout:', e);
-        }
-    }, []);
+    const networkRef = useRef(null);
 
     useEffect(() => {
-        if (!automataData || !containerRef.current) return;
+        if (!containerRef.current) return;
 
-        let isComponentMounted = true;
-        let cleanup = () => {};
-
-        const initCytoscape = () => {
-            try {
-                if (containerRef.current.offsetWidth === 0 || containerRef.current.offsetHeight === 0) {
-                    return;
+        // Convertir los nodos al formato de vis.js
+        const visNodes = new DataSet(nodes.map(node => ({
+            id: node.id,
+            label: node.label,
+            shape: node.final ? 'dot' : 'circle',
+            size: 30,
+            color: {
+                background: node.initial ? '#97c2fc' : '#ffffff',
+                border: '#2B7CE9',
+                highlight: {
+                    background: '#D2E5FF',
+                    border: '#2B7CE9'
                 }
+            },
+            borderWidth: node.final ? 3 : 1,
+            title: `Nodo: ${node.id}` // Tooltip
+        })));
 
-                const cytoscapeElements = {
-                    nodes: automataData.nodes.map(node => ({
-                        data: {
-                            id: node.id,
-                            label: node.label,
-                            isFinal: node.shape === 'doublecircle'
-                        }
-                    })),
-                    edges: automataData.edges.map(edge => ({
-                        data: {
-                            id: `${edge.from}-${edge.to}`,
-                            source: edge.from,
-                            target: edge.to,
-                            label: edge.label
-                        }
-                    }))
-                };
+        // Convertir las aristas al formato de vis.js
+        const visEdges = new DataSet(edges.map(edge => ({
+            id: edge.id || `${edge.from}-${edge.to}-${edge.label}`,
+            from: edge.from,
+            to: edge.to,
+            label: edge.label,
+            arrows: 'to',
+            font: { 
+                align: 'horizontal',
+                size: 12,
+                color: '#343434',
+                face: 'arial'
+            },
+            color: {
+                color: '#848484',
+                highlight: '#848484',
+                hover: '#848484'
+            },
+            smooth: {
+                enabled: true,
+                type: 'curvedCW',
+                roundness: 0.2
+            },
+            width: 2,
+            title: `De ${edge.from} a ${edge.to} (${edge.label})` // Tooltip
+        })));
 
-                if (cyRef.current) {
-                    cyRef.current.destroy();
+        // Configuración de la red
+        const options = {
+            nodes: {
+                font: { size: 20 }
+            },
+            edges: {
+                font: { size: 16 },
+                smooth: {
+                    enabled: true,
+                    type: 'curvedCW',
+                    roundness: 0.2
+                },
+                arrows: {
+                    to: { enabled: true, scaleFactor: 1 }
                 }
-
-                const cy = Cytoscape({
-                    container: containerRef.current,
-                    elements: cytoscapeElements,
-                    style: [
-                        {
-                            selector: 'node',
-                            style: {
-                                'background-color': '#fff',
-                                'border-color': '#2196f3',
-                                'border-width': 2,
-                                'label': 'data(label)',
-                                'text-valign': 'center',
-                                'text-halign': 'center',
-                                'width': 40,
-                                'height': 40
-                            }
-                        },
-                        {
-                            selector: 'node[?isFinal]',
-                            style: {
-                                'border-width': 4,
-                                'border-style': 'double'
-                            }
-                        },
-                        {
-                            selector: 'edge',
-                            style: {
-                                'width': 2,
-                                'line-color': '#666',
-                                'target-arrow-color': '#666',
-                                'target-arrow-shape': 'triangle',
-                                'curve-style': 'bezier',
-                                'label': 'data(label)'
-                            }
-                        }
-                    ],
-                    layout: {
-                        name: 'preset',
-                        fit: true,
-                        padding: 50,
-                        animate: false
-                    }
-                });
-
-                layoutRef.current = cy.layout({
-                    name: 'preset',
-                    fit: true,
-                    padding: 50,
-                    animate: false,
-                    maxSimulationTime: 1000,
-                    stop: () => {
-                        if (!isComponentMounted) return;
-                        if (cyRef.current) {
-                            cyRef.current.center();
-                            cyRef.current.fit();
-                        }
-                    }
-                });
-
-                if (isComponentMounted) {
-                    safeRunLayout();
+            },
+            physics: {
+                enabled: true,
+                solver: 'forceAtlas2Based',
+                forceAtlas2Based: {
+                    gravitationalConstant: -26,
+                    centralGravity: 0.005,
+                    springLength: 230,
+                    springConstant: 0.18
+                },
+                stabilization: {
+                    enabled: true,
+                    iterations: 1000,
+                    updateInterval: 100
                 }
-
-                cyRef.current = cy;
-            } catch (e) {
-                console.error('Error in cytoscape initialization:', e);
+            },
+            interaction: {
+                hover: true,
+                tooltipDelay: 200
             }
         };
 
-        cleanup = () => {
-            isComponentMounted = false;
+        // Crear la red
+        networkRef.current = new Network(
+            containerRef.current,
+            { nodes: visNodes, edges: visEdges },
+            options
+        );
 
-            if (layoutRef.current) {
-                try {
-                    layoutRef.current.stop();
-                } catch (e) {
-                    console.error('Error stopping layout:', e);
-                } finally {
-                    layoutRef.current = null;
-                }
-            }
+        // Eventos
+        if (networkRef.current) {
+            networkRef.current.on('selectNode', params => {
+                if (onNodeSelect) onNodeSelect(params.nodes[0]);
+            });
 
-            if (cyRef.current) {
-                try {
-                    cyRef.current.removeAllListeners();
-                    cyRef.current.destroy();
-                } catch (e) {
-                    console.error('Error destroying cytoscape:', e);
-                } finally {
-                    cyRef.current = null;
+            networkRef.current.on('selectEdge', params => {
+                if (onEdgeSelect) onEdgeSelect(params.edges[0]);
+            });
+
+            // Nuevo evento para actualizar posiciones tras arrastrar nodos
+            networkRef.current.on('dragEnd', params => {
+                if (params.nodes.length > 0 && onNodePositionChange) {
+                    const positions = networkRef.current.getPositions(params.nodes);
+                    onNodePositionChange(positions);
                 }
+            });
+        }
+
+        return () => {
+            if (networkRef.current) {
+                networkRef.current.destroy();
+                networkRef.current = null;
             }
         };
-
-        initCytoscape();
-        return cleanup;
-    }, [automataData, safeRunLayout]);
+    }, [nodes, edges, onNodeSelect, onEdgeSelect, onNodePositionChange]);
 
     return (
-        <Box position="relative">
-            <Box
-                ref={containerRef}
-                h="600px"
-                border="1px solid"
-                borderColor="gray.200"
-                borderRadius="lg"
-                bg="gray.50"
-                boxShadow="sm"
-                overflow="hidden"
-            />
-        </Box>
+        <div 
+            ref={containerRef} 
+            style={{ 
+                height: '600px', 
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                background: 'white' 
+            }} 
+        />
     );
 };
 

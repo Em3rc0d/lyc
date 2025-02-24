@@ -1,3 +1,4 @@
+// frontend/src/components/InputForm.js
 import React, { useState } from 'react';
 import {
     Box,
@@ -10,11 +11,12 @@ import {
     Heading,
 } from '@chakra-ui/react';
 
-const InputForm = ({ onValidationResult, currentAutomata }) => {
+const API_URL = 'http://localhost:8000';
+
+const InputForm = ({ onValidationResult, currentAutomata, automataData }) => {
     const [input, setInput] = useState('');
     const [error, setError] = useState('');
 
-    // Help texts based on automata type
     const helpTexts = {
         AFND: {
             description: "Este autómata no determinista (AFND) puede tener múltiples transiciones posibles para un mismo símbolo y estado, o transiciones vacías (épsilon). Acepta cadenas si existe al menos un camino de validación.",
@@ -30,37 +32,55 @@ const InputForm = ({ onValidationResult, currentAutomata }) => {
         e.preventDefault();
         setError('');
 
-        // Validate that the string only contains 'a' and 'b'
         if (!/^[ab]*$/.test(input)) {
             setError('La cadena solo puede contener los símbolos "a" y "b"');
-            onValidationResult(false); // Immediately indicate invalid input
+            onValidationResult(false);
             return;
         }
 
         try {
-            const response = await fetch('http://localhost:5000/validate', {
+            console.log('Sending data:', {
+                input: input,
+                automataType: currentAutomata,
+                automataData: {
+                    nodes: automataData.nodes,
+                    edges: automataData.edges
+                }
+            });
+
+            const response = await fetch(`${API_URL}/api/validate/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    input,
-                    automataType: currentAutomata
+                    input: input,
+                    automataType: currentAutomata,
+                    automataData: {
+                        nodes: automataData.nodes,
+                        edges: automataData.edges
+                    }
                 }),
             });
 
-            const data = await response.json();
+            console.log('Response:', response);
 
-            if (response.ok) {
-                onValidationResult(data.isValid);
-            } else {
-                setError(data.error || 'Error al validar la cadena');
-                onValidationResult(false);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
-        } catch (fetchError) {
-            console.error('Error al validar:', fetchError);
-            setError('Error de conexión con el servidor');
-            onValidationResult(false);
+
+            const data = await response.json();
+            console.log('Data received:', data);
+            
+            if (data.error) {
+                setError(data.error);
+                onValidationResult(false);
+            } else {
+                onValidationResult(data.isValid);
+            }
+        } catch (error) {
+            console.error('Detailed error:', error);
+            setError('Error al conectar con el servidor: ' + error.message);
         }
     };
 
@@ -89,7 +109,7 @@ const InputForm = ({ onValidationResult, currentAutomata }) => {
                     isInvalid={!!error}
                 />
                 <Text fontSize="sm" color="gray.500" mt={2}>
-                    {error ? '' : helpTexts[currentAutomata].examples}
+                    {error? '': helpTexts[currentAutomata].examples}
                 </Text>
             </Box>
 

@@ -1,122 +1,97 @@
-import React, { useState } from 'react';
-import {
-    Container,
-    Box,
-    Heading,
-    Tabs,
-    TabList,
-    TabPanels,
-    Tab,
-    TabPanel,
-    VStack,
-    Button,
-    Text,
-    useColorModeValue,
-} from '@chakra-ui/react';
+import React from 'react';
+import { Box, Container, Heading, Grid, GridItem, Button, VStack } from '@chakra-ui/react';
 import AutomataVisualizer from './components/AutomataVisualizer';
 import InputForm from './components/InputForm';
-import AutomataDesigner from './components/AutomataDesigner';
+import { useAutomataLogic } from './hooks/useAutomataLogic';
+import AutomataTypeSelector from './components/AutomataTypeSelector';
+import AddNodeForm from './components/AddNodeForm';
+import EditorPanel from './components/EditorPanel';
 
 function App() {
-    const [tabIndex, setTabIndex] = useState(0);
-    const [validationResult, setValidationResult] = useState(null);
-    const [automataData, setAutomataData] = useState({
-        nodes: [],
-        edges: []
-    });
-    const [afdData, setAfdData] = useState(null);
+    const { 
+        nodes, 
+        edges, 
+        error, 
+        convertAutomata, 
+        addNode, 
+        setNodes, 
+        setEdges, 
+        automataType, 
+        setAutomataType, 
+        alphabet, 
+        setAlphabet,
+        updateNode,
+        deleteNode,
+        addEdge,
+        deleteEdge,
+        undo,
+        redo,
+        canUndo,
+        canRedo
+    } = useAutomataLogic();
 
-    const bgColor = useColorModeValue('white', 'gray.800');
-    const borderColor = useColorModeValue('gray.200', 'gray.700');
-
-    const handleTabChange = (index) => {
-        setTabIndex(index);
+    const handleNodeSelect = (nodeId) => {
+        console.log('Node selected:', nodeId);
     };
 
-    const handleAutomataChange = async (newData) => {
-        setAutomataData(newData);
+    const handleEdgeSelect = (edgeId) => {
+        console.log('Edge selected:', edgeId);
     };
 
-    const handleConvertToAFD = async () => {
-        try {
-            const response = await fetch('http://localhost:5000/automata/convert', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(automataData)
-            });
-            if (!response.ok) throw new Error('Error en la conversión');
-            const afdResult = await response.json();
-            setAfdData(afdResult);
-        } catch (error) {
-            console.error('Error al convertir el autómata:', error);
-            // Consider adding user-facing error feedback here, like a Snackbar
+    const handleConvertClick = async () => {
+        const afdData = await convertAutomata();
+        if (afdData) {
+            setNodes(afdData.nodes);
+            setEdges(afdData.edges);
         }
     };
 
     return (
         <Container maxW="container.xl" py={8}>
-            <VStack spacing={8}>
-                <Heading as="h1" size="xl" textAlign="center">
-                    Visualizador de Autómatas
-                </Heading>
-
-                <Box w="full" bg={bgColor} borderRadius="lg" borderWidth="1px" p={6}>
-                    <Tabs isFitted variant="enclosed" index={tabIndex} onChange={handleTabChange}>
-                        <TabList mb={4}>
-                            <Tab>AFND</Tab>
-                            <Tab>AFD</Tab>
-                        </TabList>
-
-                        <TabPanels>
-                            <TabPanel>
-                                <AutomataVisualizer
-                                    automataType="AFND"
-                                    automataData={automataData}
-                                />
-                            </TabPanel>
-                            <TabPanel>
-                                <AutomataVisualizer
-                                    automataType="AFD"
-                                    automataData={afdData || { nodes: [], edges: [] }}
-                                />
-                            </TabPanel>
-                        </TabPanels>
-                    </Tabs>
-                </Box>
-
-                <Box w="full" bg={bgColor} borderRadius="lg" borderWidth="1px" p={6}>
-                    <InputForm
-                        onValidationResult={setValidationResult}
-                        currentAutomata={tabIndex === 0 ? 'AFND' : 'AFD'}
-                    />
-                    {validationResult !== null && (
-                        <Text
-                            mt={4}
-                            fontSize="lg"
-                            color={validationResult ? "green.500" : "red.500"}
-                            fontWeight="bold"
-                        >
-                            {validationResult
-                                ? "¡La cadena es válida!"
-                                : "La cadena no es válida."}
-                        </Text>
-                    )}
-                </Box>
-
-                <Box w="full" bg={bgColor} borderRadius="lg" borderWidth="1px" p={6}>
-                    <VStack spacing={4}>
-                        <Heading size="md">Diseñador de Autómatas</Heading>
-                        <AutomataDesigner onAutomataChange={handleAutomataChange} />
-                        <Button
-                            colorScheme="purple"
-                            onClick={handleConvertToAFD}
-                            size="lg"
-                        >
-                            Convertir a AFD
-                        </Button>
+            <Heading as="h1" size="xl" textAlign="center" mb={8}>
+                Visualizador de Autómatas
+            </Heading>
+            {error && <Box color="red.500">{error}</Box>}
+            
+            <Grid templateColumns="3fr 1fr" gap={6}>
+                <GridItem>
+                    <VStack spacing={8} align="stretch">
+                        <AutomataTypeSelector
+                            automataType={automataType || 'AFND'}
+                            setAutomataType={setAutomataType}
+                            alphabet={alphabet || ['a', 'b']}
+                            setAlphabet={setAlphabet}
+                        />
+                        <AutomataVisualizer
+                            nodes={nodes}
+                            edges={edges}
+                            onNodeSelect={handleNodeSelect}
+                            onEdgeSelect={handleEdgeSelect}
+                        />
+                        <InputForm
+                            currentAutomata={automataType}
+                            automataData={{ nodes, edges }}
+                            onValidationResult={(isValid) => console.log("Validation Result:", isValid)}
+                        />
                     </VStack>
-                </Box>
-            </VStack>
+                </GridItem>
+                
+                <GridItem>
+                    <EditorPanel
+                        nodes={nodes}
+                        edges={edges}
+                        addNode={addNode}
+                        updateNode={updateNode}
+                        deleteNode={deleteNode}
+                        addEdge={addEdge}
+                        deleteEdge={deleteEdge}
+                        undo={undo}
+                        redo={redo}
+                        canUndo={canUndo}
+                        canRedo={canRedo}
+                    />
+                </GridItem>
+            </Grid>
         </Container>
     );
 }
