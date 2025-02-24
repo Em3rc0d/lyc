@@ -15,16 +15,17 @@ class AFND(Automata):
             if "estados" not in data or "transiciones" not in data:
                 raise ValueError("❌ Error: El JSON no tiene la estructura esperada. Debe incluir 'estados' y 'transiciones'.")
 
-            # Agregar estados
+            # Agregar todos los estados primero
             for estado in data["estados"]:
                 nombre = estado.get("nombre")
                 es_final = estado.get("final", False)
                 if nombre:
                     self.agregar_estado(nombre, es_final)
-                else:
-                    print("⚠️ Advertencia: Estado sin nombre encontrado en el JSON.")
 
-            # Agregar transiciones
+            # 🔍 Depuración: Verificar estados cargados antes de agregar transiciones
+            print(f"📌 Estados registrados antes de transiciones: {list(self.estados.keys())}")
+
+            # Luego, agregar transiciones
             for transicion in data["transiciones"]:
                 origen = transicion.get("origen")
                 simbolo = transicion.get("simbolo")
@@ -35,6 +36,10 @@ class AFND(Automata):
                 else:
                     print(f"⚠️ Advertencia: Estado no encontrado en la transición {transicion}")
 
+            # 🔍 Debug: Verificar transiciones cargadas
+            for estado in self.estados.values():
+                print(f"📌 Transiciones de {estado.nombre}: {estado.transiciones}")
+
         except FileNotFoundError:
             print(f"❌ Error: Archivo '{filepath}' no encontrado.")
         except json.JSONDecodeError:
@@ -43,6 +48,7 @@ class AFND(Automata):
             print(ve)
 
         return self
+
 
     def guardar_en_json(self, filepath="../data/automata1.json"):
         """Guarda el autómata en un archivo JSON con formato corregido."""
@@ -69,12 +75,12 @@ class AFND(Automata):
         """Agrega una transición al autómata."""
         origen = origen.lower()
         destino = destino.lower()
-        
+
         if origen not in self.estados:
             raise ValueError(f"❌ Error: El estado origen '{origen}' no existe en el autómata.")
         if destino not in self.estados:
             raise ValueError(f"❌ Error: El estado destino '{destino}' no existe en el autómata.")
-        
+
         # Agregar la transición correctamente
         self.estados[origen].agregar_transicion(simbolo, self.estados[destino])
 

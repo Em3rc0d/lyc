@@ -6,6 +6,13 @@ class RegexToAFND:
             raise ValueError("❌ Error: La expresión regular debe ser un string válido.")
         self.regex = regex
         self.afnd = None
+        self.estado_id = 0  # Contador de estados único
+
+    def nuevo_estado(self):
+        """Genera nombres únicos para los estados."""
+        nombre = f"s{self.estado_id}"
+        self.estado_id += 1
+        return nombre
 
     def _add_concat(self, regex):
         """Inserta explícitamente el operador de concatenación '.' donde sea necesario."""

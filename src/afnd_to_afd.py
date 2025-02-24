@@ -115,5 +115,16 @@ class AFND_to_AFD:
         return self
 
     def agregar_transicion(self, origen, simbolo, destino):
-        self.afnd.agregar_transicion(origen.lower(), simbolo, destino.lower())
+        """Agrega una transición al autómata."""
+        origen = origen.lower()
+        destino = destino.lower()
+
+        if origen not in self.estados:
+            raise ValueError(f"❌ Error: El estado origen '{origen}' no existe en el autómata.")
+        if destino not in self.estados:
+            raise ValueError(f"❌ Error: El estado destino '{destino}' no existe en el autómata.")
+
+        # Agregar la transición correctamente
+        self.estados[origen].agregar_transicion(simbolo, self.estados[destino])
+
         return self
