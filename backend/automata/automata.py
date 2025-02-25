@@ -164,3 +164,58 @@ class Automata:
         tiene_final = any(estado.es_final for estado in estados_actuales)
         print(f"Estados finales alcanzados: {tiene_final}")
         return tiene_final
+    
+    def minimizar(self):
+        if self.tipo != 'AFD':
+            raise ValueError("Solo se puede minimizar un AFD.")
+
+        estados = list(self.estados.values())
+        simbolos = set()
+        for estado in estados:
+            simbolos.update(estado.transiciones.keys())
+
+        finales = {estado for estado in estados if estado.es_final}
+        no_finales = {estado for estado in estados if not estado.es_final}
+        particiones = [finales, no_finales] if finales and no_finales else [finales or no_finales]
+
+        while True:
+            nuevas_particiones = []
+            for grupo in particiones:
+                subgrupos = {}
+                for estado in grupo:
+                    clave = tuple(
+                        next(
+                            (i for i, g in enumerate(particiones) if estado.transiciones.get(simbolo, [None])[0] in g),
+                            -1
+                        )
+                        for simbolo in simbolos
+                    )
+                    subgrupos.setdefault(clave, set()).add(estado)
+                nuevas_particiones.extend(subgrupos.values())
+            if nuevas_particiones == particiones:
+                break
+            particiones = nuevas_particiones
+
+        nuevo_automata = Automata(tipo='AFD')
+        estado_mapeo = {}
+
+        for i, grupo in enumerate(particiones):
+            nombre_grupo = f"Q{i}"
+            es_final = any(estado.es_final for estado in grupo)
+            nuevo_automata.agregar_estado(nombre_grupo, es_final)
+            for estado in grupo:
+                estado_mapeo[estado] = nombre_grupo
+
+        for grupo in particiones:
+            representante = next(iter(grupo))
+            for simbolo in simbolos:
+                destino = representante.transiciones.get(simbolo, [None])[0]
+                if destino and destino in estado_mapeo:
+                    nuevo_automata.agregar_transicion(
+                        estado_mapeo[representante], 
+                        simbolo, 
+                        estado_mapeo[destino]
+                    )
+
+        nuevo_automata.estado_inicial = nuevo_automata.estados[estado_mapeo[self.estado_inicial]]
+        return nuevo_automata
