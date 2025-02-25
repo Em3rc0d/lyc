@@ -5,6 +5,7 @@ import logging
 class Estado:
     def __init__(self, nombre, es_final=False):
         self.nombre = nombre
+        self.es_inicial = False
         self.es_final = es_final
         self.transiciones = {}
 
@@ -28,10 +29,7 @@ class Automata:
     def agregar_estado(self, nombre, es_final=False):
         """Agrega un estado al autómata si no existe. Si existe, lo marca como final si es necesario."""
         nombre = nombre.lower()
-
-        # Establecer el estado inicial si aún no se ha definido
-        if self.estado_inicial is None:
-            self.establecer_estado_inicial(nombre)
+        print(f"📌 Antes de agregar '{nombre}': Estados actuales: {list(self.estados.keys())}")  # Depuración
 
         # Si el estado ya existe, solo actualizar si es final
         if nombre in self.estados:
@@ -45,45 +43,63 @@ class Automata:
             self.estados[nombre] = Estado(nombre, es_final)
             logging.debug(f"✅ Estado agregado correctamente: {nombre} (Final: {es_final})")
 
+            # Establecer el estado inicial si aún no se ha definido
+            if self.estado_inicial is None:
+                self.establecer_estado_inicial(nombre)
+
         # 🔍 Debug: Mostrar estados disponibles
         logging.debug(f"📌 Estados actuales: {list(self.estados.keys())}")
 
         return self
-
 
     def agregar_transicion(self, origen, simbolo, destino):
         """Agrega una transición al autómata."""
         origen = origen.lower()
         destino = destino.lower()
 
+        # Debugging antes de la validación
+        print(f"🔍 Verificando transición {origen} --{simbolo}--> {destino}")
+        print(f"📌 Estados disponibles: {list(self.estados.keys())}")
+
         if origen not in self.estados:
+            print(f"⚠️ Estado '{origen}' no existe, se creará automáticamente.")
+            self.agregar_estado(origen)
             raise ValueError(f"❌ Error: El estado origen '{origen}' no existe en el autómata.")
         if destino not in self.estados:
+            print(f"⚠️ Estado '{destino}' no existe, se creará automáticamente.")
+            self.agregar_estado(destino)
             raise ValueError(f"❌ Error: El estado destino '{destino}' no existe en el autómata.")
 
-        # Agregar la transición correctamente
         self.estados[origen].agregar_transicion(simbolo, self.estados[destino])
+        print(f"✅ Transición añadida correctamente: {origen} --{simbolo}--> {destino}")
 
         return self
-
 
     def fusionar(self, otro):
         """Fusiona los estados de otro autómata con el actual, evitando duplicados."""
+        # Agregar todos los estados primero
         for nombre, estado in otro.estados.items():
             if nombre not in self.estados:
-                self.estados[nombre] = estado
+                self.estados[nombre] = Estado(nombre, estado.es_final)
             else:
-                # Fusionar transiciones sin duplicar
-                for simbolo, destinos in estado.transiciones.items():
-                    for destino in destinos:
-                        if destino not in self.estados[nombre].transiciones.get(simbolo, []):
-                            self.estados[nombre].agregar_transicion(simbolo, destino)
+                if estado.es_final:
+                    self.estados[nombre].es_final = True  # Mantener el estado final si aplica
+
+        # Agregar transiciones asegurándose de que los estados existen
+        for nombre, estado in otro.estados.items():
+            for simbolo, destinos in estado.transiciones.items():
+                for destino in destinos:
+                    if destino.nombre not in self.estados:
+                        self.estados[destino.nombre] = Estado(destino.nombre, destino.es_final)
+                    self.estados[nombre].agregar_transicion(simbolo, self.estados[destino.nombre])
 
         # Mantener estado inicial si aún no se ha definido
-        if self.estado_inicial is None:
-            self.estado_inicial = otro.estado_inicial
+        if self.estado_inicial is None and otro.estado_inicial is not None:
+            self.estado_inicial = self.estados.get(otro.estado_inicial.nombre, None)
 
         return self
+
+
 
     def mostrar_automata(self):
         """Muestra los estados y transiciones del autómata en consola."""
@@ -98,13 +114,18 @@ class Automata:
 
     def establecer_estado_inicial(self, nombre):
         """Establece el estado inicial solo si aún no se ha definido."""
-        if self.estado_inicial is None:
-            self.estado_inicial = self.estados.get(nombre.lower())
-            print(f"✅ Estado inicial establecido: {self.estado_inicial}")
+        nombre = nombre.lower()
+        if nombre in self.estados:
+            if self.estado_inicial is None:
+                self.estado_inicial = self.estados[nombre]
+                print(f"✅ Estado inicial establecido: {self.estado_inicial.nombre}")
+            else:
+                print(f"⚠️ Advertencia: El estado inicial ya está definido como {self.estado_inicial.nombre}. Ignorando {nombre}.")
         else:
-            print(f"⚠️ Advertencia: El estado inicial ya está definido como {self.estado_inicial}. Ignorando {nombre}.")
+            print(f"❌ Error: No se puede establecer '{nombre}' como estado inicial porque no existe.")
 
         return self
+
 
 
     def guardar_automata(self, archivo="automata.json"):
@@ -130,6 +151,7 @@ class Automata:
         return self
 
 
+    @staticmethod
     def cargar_automata(archivo="automata.json"):
         """Carga un autómata desde un archivo JSON y lo reconstruye."""
         with open(archivo, "r") as f:
@@ -137,25 +159,18 @@ class Automata:
 
         automata = Automata(datos["tipo"])
 
-        # Crear diccionario de estados
-        estados_dict = {estado["nombre"]: estado for estado in datos["estados"]}
-
         # Agregar estados
-        for nombre, info in estados_dict.items():
-            automata.agregar_estado(nombre, info["final"])
+        for nombre, info in datos["estados"].items():
+            automata.agregar_estado(nombre, info["es_final"])
 
         # Agregar transiciones
-        for transicion in datos["transiciones"]:
-            origen = transicion["origen"]
-            destino = transicion["destino"]
-
-            if origen in estados_dict and destino in estados_dict:
-                automata.agregar_transicion(origen, transicion["simbolo"], destino)
-            else:
-                print(f"⚠️ Advertencia: Estado en transición no encontrado: {origen} → {destino}")
+        for nombre, info in datos["estados"].items():
+            for simbolo, destinos in info["transiciones"].items():
+                for destino in destinos:
+                    automata.agregar_transicion(nombre, simbolo, destino)
 
         # Establecer estado inicial
-        if "estado_inicial" in datos and datos["estado_inicial"] in estados_dict:
+        if "estado_inicial" in datos and datos["estado_inicial"] in automata.estados:
             automata.estado_inicial = automata.estados[datos["estado_inicial"]]
         else:
             print(f"⚠️ Advertencia: Estado inicial '{datos.get('estado_inicial')}' no encontrado")
