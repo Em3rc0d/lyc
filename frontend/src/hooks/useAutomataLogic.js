@@ -8,11 +8,27 @@ export const useAutomataLogic = (onAutomataChange) => {
         label: 'q0',
         shape: 'circle',
         final: false,
-        initial: true, // Marca el estado inicial
+        initial: true,
         x: 0,
         y: 0
+    }, {
+        id: 'q1',
+        label: 'q1',
+        shape: 'doublecircle', // Usando forma visual para estado final
+        final: true,          // Marcando explícitamente como final
+        initial: false,
+        x: 100,
+        y: 0
     }]);
-    const [edges, setEdges] = useState([]);
+
+    const [edges, setEdges] = useState([{
+        id: 'q0-q1-a',
+        from: 'q0',
+        to: 'q1',
+        label: 'a',
+        arrows: 'to'
+    }]);
+    
     const [error, setError] = useState(null);
     const [automataType, setAutomataType] = useState('AFND');
     const [alphabet, setAlphabet] = useState(['a', 'b']); // Inicializar con valores por defecto
@@ -115,8 +131,28 @@ export const useAutomataLogic = (onAutomataChange) => {
     }, [nodes, edges, validateEdge, handleStateChange]);
 
     const updateNode = useCallback((id, changes) => {
-        const newNodes = nodes.map(node => node.id === id ? { ...node, ...changes } : node);
-        handleStateChange(newNodes, edges);
+        // Si estamos estableciendo un nuevo estado inicial, quitar inicial de los demás
+        if (changes.initial === true) {
+            const newNodes = nodes.map(node => ({
+                ...node,
+                initial: node.id === id
+            }));
+            handleStateChange(newNodes, edges);
+        } else {
+            // Para otros cambios
+            const newNodes = nodes.map(node => {
+                if (node.id === id) {
+                    // Actualizar la forma si cambió el estado final
+                    const updatedNode = { ...node, ...changes };
+                    if (changes.hasOwnProperty('final')) {
+                        updatedNode.shape = changes.final ? 'doublecircle' : 'circle';
+                    }
+                    return updatedNode;
+                }
+                return node;
+            });
+            handleStateChange(newNodes, edges);
+        }
     }, [nodes, edges, handleStateChange]);
 
     const deleteNode = useCallback((nodeId) => {
@@ -158,7 +194,7 @@ export const useAutomataLogic = (onAutomataChange) => {
 
      const convertAutomata = useCallback(async () => {
         try {
-            const response = await fetch('http://localhost:3001/automata/convert', { // Backend endpoint for conversion
+            const response = await fetch('http://localhost:8000/api/automata/convert/', { // Backend endpoint for conversion
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

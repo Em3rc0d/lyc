@@ -1,82 +1,72 @@
-from .automata import Automata, Estado
-from typing import Set, Dict, List, FrozenSet
-from functools import lru_cache
+"""
+Validación de autómatas y cadenas.
+"""
+from typing import Set, Dict, List, Any
+from .automata import Estado, Automata
+from .utils import logger
 
 class Validator:
+    """Clase para validar autómatas y cadenas."""
+    
     @staticmethod
     def validar_cadena(automata: Automata, cadena: str) -> bool:
-        try:
-            if not isinstance(automata, Automata) or not isinstance(cadena, str):
-                raise ValueError("Tipos de datos inválidos")
-
-            if not automata.estado_inicial:
-                return False
-
-            # Validar que exista al menos un estado final
-            if not any(estado.es_final for estado in automata.estados.values()):
-                return False
-
-            # Conjunto inicial de estados
-            estados_actuales = {automata.estado_inicial}
-            
-            # Para cada símbolo en la cadena
-            for simbolo in cadena:
-                print(f"Procesando símbolo: {simbolo}")
-                if not estados_actuales:
-                    return False
-                    
-                # Obtener próximos estados para el símbolo actual
-                nuevos_estados = set()
-                for estado in estados_actuales:
-                    print(f"Evaluando estado: {estado.nombre}")
-                    if simbolo in estado.transiciones:
-                        nuevos_estados.update(estado.transiciones[simbolo])
+        """Valida una cadena con un autómata."""
+        return automata.validar_cadena(cadena)
+    
+    @staticmethod
+    def _cerradura_epsilon(estados: Set[Estado]) -> Set[Estado]:
+        """Calcula la cerradura epsilon de un conjunto de estados."""
+        resultado = set(estados)
+        procesados = set()
+        por_procesar = list(estados)
+        
+        while por_procesar:
+            actual = por_procesar.pop()
+            if actual in procesados:
+                continue
                 
-                if nuevos_estados:
-                    print(f"Nuevos estados para {simbolo}: {[e.nombre for e in nuevos_estados]}")
-                else:
-                    print(f"No hay transiciones válidas para {simbolo}")
-                    
-                estados_actuales = nuevos_estados
-
-            # Verificar si llegamos a un estado final
-            return any(estado.es_final for estado in estados_actuales)
-
-        except Exception as e:
-            print(f"Error en validación: {str(e)}")
-            return False
-
-    @staticmethod
-    def _procesar_simbolo_afnd(estados: Set[Estado], simbolo: str) -> Set[Estado]:
-        nuevos_estados = set()
-        for estado in estados:
-            if simbolo in estado.transiciones:
-                nuevos_estados.update(estado.transiciones[simbolo])
-        return nuevos_estados
-
-    @staticmethod
-    @lru_cache(maxsize=128)
-    def _cerradura_epsilon(estados: FrozenSet[Estado]) -> FrozenSet[Estado]:
-        if not estados:
-            return frozenset()
+            procesados.add(actual)
             
-        pila = list(estados)
-        cerradura = set(estados)
-
-        while pila:
-            estado = pila.pop()
-            if "ε" in estado.transiciones:
-                for siguiente in estado.transiciones["ε"]:
-                    if siguiente not in cerradura:
-                        cerradura.add(siguiente)
-                        pila.append(siguiente)
-
-        return frozenset(cerradura)
-
+            if 'ε' in actual.transiciones:
+                for estado in actual.transiciones['ε']:
+                    if estado not in procesados:
+                        resultado.add(estado)
+                        por_procesar.append(estado)
+        
+        return resultado
+    
     @staticmethod
-    def _obtener_alfabeto(automata: Automata) -> Set[str]:
-        alfabeto = set()
-        for estado in automata.estados.values():
-            alfabeto.update(estado.transiciones.keys())
-        alfabeto.discard("ε")
-        return alfabeto
+    def validate_automata_structure(automata_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Valida la estructura de un autómata desde datos JSON.
+        Retorna un diccionario con el resultado de la validación.
+        """
+        result = {
+            'is_valid': True,
+            'errors': [],
+            'warnings': []
+        }
+        
+        # Verificar si hay nodos y aristas
+        if 'nodes' not in automata_data or not automata_data['nodes']:
+            result['is_valid'] = False
+            result['errors'].append('No hay nodos definidos en el autómata')
+            return result
+            
+        if 'edges' not in automata_data or not automata_data['edges']:
+            result['warnings'].append('No hay transiciones definidas en el autómata')
+        
+        # Verificar estado inicial
+        initial_states = [n for n in automata_data['nodes'] if n.get('initial', False)]
+        if not initial_states:
+            result['warnings'].append('No hay un estado inicial definido')
+        elif len(initial_states) > 1:
+            result['warnings'].append(f'Hay múltiples estados iniciales: {", ".join([n["id"] for n in initial_states])}')
+        
+        # Verificar estados finales
+        final_states = [n for n in automata_data['nodes'] if n.get('final', False)]
+        if not final_states:
+            result['warnings'].append('No hay estados finales definidos')
+        
+        # Todo parece estar bien
+        return result

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Box, Button, Input, VStack, HStack, Text, Heading, List, ListItem, FormControl, FormLabel, FormErrorMessage, Select } from '@chakra-ui/react';
+import { Box, Button, Input, VStack, HStack, Text, Heading, List, ListItem, 
+         FormControl, FormLabel, FormErrorMessage, Select, Switch } from '@chakra-ui/react';
 
 const EditorPanel = ({ nodes, edges, addNode, updateNode, deleteNode, addEdge, deleteEdge, undo, redo }) => {
   // Formularios locales para agregar estado o transición
@@ -8,6 +9,20 @@ const EditorPanel = ({ nodes, edges, addNode, updateNode, deleteNode, addEdge, d
   const [destino, setDestino] = useState('');
   const [simbolo, setSimbolo] = useState('');
   const [edgeError, setEdgeError] = useState('');
+
+  // Función para cambiar el estado inicial
+  const handleInitialStateChange = (nodeId) => {
+    const newNodes = nodes.map(n => ({
+      ...n,
+      initial: n.id === nodeId
+    }));
+    updateNode(nodeId, { initial: true });
+  };
+  
+  // Función para cambiar el estado final
+  const handleFinalStateChange = (nodeId, isFinal) => {
+    updateNode(nodeId, { final: isFinal });
+  };
 
   const handleAddEdge = () => {
     if (!origen || !destino || !simbolo) {
@@ -38,12 +53,34 @@ const EditorPanel = ({ nodes, edges, addNode, updateNode, deleteNode, addEdge, d
         </HStack>
         <List spacing={1}>
           {nodes.map(node => (
-            <ListItem key={node.id}>
+            <ListItem key={node.id} p={2} borderWidth="1px" borderRadius="md">
               <HStack justify="space-between">
-                <Text>{node.id}</Text>
+                <Text fontWeight={node.initial ? 'bold' : 'normal'} 
+                      color={node.initial ? 'orange.500' : 'inherit'}>
+                  {node.id}
+                  {node.initial && ' (Inicial)'}
+                  {node.final && ' (Final)'}
+                </Text>
                 <HStack>
-                  <Button size="xs" onClick={() => updateNode && updateNode(node.id, { /* cambios aquí */ })}>Editar</Button>
-                  <Button size="xs" colorScheme="red" onClick={() => deleteNode && deleteNode(node.id)}>Eliminar</Button>
+                  <Button 
+                    size="xs" 
+                    colorScheme={node.initial ? 'orange' : 'gray'}
+                    onClick={() => handleInitialStateChange(node.id)}>
+                    Inicial
+                  </Button>
+                  <Switch 
+                    isChecked={node.final} 
+                    onChange={(e) => handleFinalStateChange(node.id, e.target.checked)} 
+                    colorScheme="red"
+                    size="sm"
+                  />
+                  <Text fontSize="sm">Final</Text>
+                  <Button 
+                    size="xs" 
+                    colorScheme="red" 
+                    onClick={() => deleteNode(node.id)}>
+                    Eliminar
+                  </Button>
                 </HStack>
               </HStack>
             </ListItem>

@@ -16,6 +16,7 @@ const API_URL = 'http://localhost:8000';
 const InputForm = ({ onValidationResult, currentAutomata, automataData }) => {
     const [input, setInput] = useState('');
     const [error, setError] = useState('');
+    const [validationResult, setValidationResult] = useState(null);
 
     const helpTexts = {
         AFND: {
@@ -31,6 +32,7 @@ const InputForm = ({ onValidationResult, currentAutomata, automataData }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        setValidationResult(null);
 
         if (!/^[ab]*$/.test(input)) {
             setError('La cadena solo puede contener los símbolos "a" y "b"');
@@ -72,9 +74,16 @@ const InputForm = ({ onValidationResult, currentAutomata, automataData }) => {
             const data = await response.json();
             console.log('Data received:', data);
             
+            // Mostrar el resultado de validación
+            setValidationResult(data.isValid);
+            
             if (data.error) {
                 setError(data.error);
                 onValidationResult(false);
+            } else if (data.warnings && data.warnings.length > 0) {
+                console.log('Warnings:', data.warnings); // Agrega esto para ver las advertencias
+                setError('Advertencia: ' + data.warnings.join(', '));
+                onValidationResult(data.isValid);
             } else {
                 onValidationResult(data.isValid);
             }
@@ -94,6 +103,20 @@ const InputForm = ({ onValidationResult, currentAutomata, automataData }) => {
                 <Alert status="error">
                     <AlertIcon />
                     {error}
+                </Alert>
+            )}
+
+            {validationResult === true && !error && (
+                <Alert status="success">
+                    <AlertIcon />
+                    ¡Cadena "{input}" válida! El autómata acepta esta cadena.
+                </Alert>
+            )}
+
+            {validationResult === false && !error && (
+                <Alert status="warning">
+                    <AlertIcon />
+                    Cadena "{input}" no válida. El autómata no acepta esta cadena.
                 </Alert>
             )}
 
